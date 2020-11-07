@@ -1,11 +1,19 @@
-const express = require('express')
+//------------REQUIRES------------//
+
+require('dotenv').config()
+const express = require('express')  // Web Server
 const app = express()
-const morgan = require('morgan')
-const cors = require('cors')
+const morgan = require('morgan')    // Middleware to print requests to console
+const cors = require('cors')    // Allows requests
+const Person = require('./models/person')    // DB
 
-app.use(express.json())
-app.use(express.static('build'))
 
+//------------INITIALIZES MIDDLEWARE------------//
+
+app.use(express.json())     // Allows express to use json
+app.use(express.static('build'))    // Serves static build of react app
+
+//  Morgan definition to choose how requests are printed.
 app.use(morgan(function (tokens, req, res) {
     if(tokens.method(req, res) != 'POST'){
         return [
@@ -27,39 +35,22 @@ app.use(morgan(function (tokens, req, res) {
     }
 }))
 
+//  Morgan token that returns body of request.
 morgan.token('content', (req, res) => {
     return JSON.stringify(req.body)
 })
 
-app.use(cors())
+app.use(cors()) // Adding cors to app
 
-let persons = [
-    {
-        id: 1,
-        name: "Arto Hellas",
-        number: "040-123456"
-    },
-    {
-        id: 2,
-        name: "Ada Lovelace",
-        number: "39-44-5323523"
-    },
-    {
-        id: 3,
-        name: "Dan Abramov",
-        number: "12-43-234345"
-    },
-    {
-        id: 4,
-        name: "Marry Poppendick",
-        number: "39-23-6423122"
-    }
-]
 
+//------------ENDPOINTS------------//
+
+//  Just a default page for whatever.
 app.get('/', (request, response) => {
     response.send('<h1>Hello World!</h1>')
 })
 
+//  Returns information about phonebook.
 app.get('/info', (request, response) => {
     const num = persons.length
     const date = new Date();
@@ -70,46 +61,52 @@ app.get('/info', (request, response) => {
         )
 })
 
+//  ENDPOINT: Gets all persons in phonebok.
 app.get('/api/persons', (request, response) => {
-    response.json(persons)
+    Person.find({})
+        .then(persons => {
+            response.json(persons)
+        })
 })
 
+//  ENDPOINT: Gets person at specific id.
 app.get('/api/persons/:id', (request, response) => { 
     const id = Number(request.params.id)
-    const person = persons.find(p => p.id === id)
-
-    if(person){
-        response.json(person)
-    }else{
-        response.status(404).end()
-    }
+    
+    Person.findById(id)
+        .then(person => {
+            response.json(person)
+        })
+        .catch(err => {
+            response.json(err.message)
+        })
 })
 
+//  ENDPOINT: Adds person to phonebook.
 app.post('/api/persons', (request, response) => {
     const body = request.body
 
+    //  If the request has no 
     if(!body.name){
         return response.status(400).json({error: "Name Missing."})
-    }else if(persons.filter(p => p.name === body.name).length > 0){
-        return response.status(400).json({error: "Name must be unique."})
     }
 
-    const id = Math.random() * 10000;
-
-    const person = {
-        id: id,
+    //  Create person object based off request against dbschema.
+    const person = new Person({
         name: body.name,
         number: body.number
-    }
+    })
 
-    persons = persons.concat(person)
-
-    response.json(person)
+    //  Save Person to database.
+    person.save().then(savedPerson => {
+        response.json(savedPerson)
+    })
 })
 
+//  ENDPOINT: Deletes person with id.
 app.delete('/api/persons/:id', (request, response) => {
     const id = Number(request.params.id)
-    persons = persons.filter(p => p.id !== id)
+    
 
     response.status(204).end()
 })
